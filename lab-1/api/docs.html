@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>api — docs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/docs/swagger-ui.css">
+  <style>
+    body { margin: 0 }
+    .fallback {
+      font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      max-width: 46rem; margin: 3rem auto; padding: 0 1.5rem;
+    }
+    .fallback code { background: #f2f2f2; padding: .1rem .3rem; border-radius: 3px }
+  </style>
+</head>
+<body>
+  <div id="ui"></div>
+  <script src="/docs/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function () {
+      if (typeof SwaggerUIBundle === 'undefined') {
+        document.getElementById('ui').innerHTML =
+          '<div class="fallback"><p><strong>Swagger UI did not load.</strong></p>' +
+          '<p>The specification is served directly by the binary: ' +
+          '<code>curl localhost:8080/openapi.yaml</code></p></div>';
+        return;
+      }
+      SwaggerUIBundle({ url: '/openapi.yaml', dom_id: '#ui', deepLinking: true });
+    };
+  </script>
+</body>
+</html>

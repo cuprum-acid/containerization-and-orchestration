@@ -1,0 +1,213 @@
+openapi: 3.1.0
+
+info:
+  title: api
+  version: 1.0.0
+  summary: The service under test for lab 1.
+  description: |
+    A deliberately badly-behaved HTTP service: it allocates memory and burns CPU
+    on demand, so that cgroup limits and namespaces have something to act on.
+
+    `/info` is the instrument for the isolation experiments — it reports what the
+    process believes about itself (pid, uid, hostname, namespaced pids,
+    capability sets, seccomp state, cgroup path), which is exactly what
+    namespaces and dropped privileges change.
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local instance (override the listen address with ADDR).
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe.
+      description: Returns `ok`. Used to prove the service survived being wrapped in namespaces.
+      responses:
+        "200":
+          description: The service is up.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "ok\n"
+
+  /eat:
+    get:
+      operationId: eatMemory
+      summary: Allocate N megabytes and hold them.
+      description: |
+        Allocates in 32 MB chunks and writes one byte per page, which is what
+        faults the pages in and gets them charged to the cgroup. The memory is
+        held until `/free` (or until the OOM killer takes the process).
+      parameters:
+        - name: mb
+          in: query
+          required: true
+          description: Megabytes to allocate.
+          schema:
+            type: integer
+            minimum: 1
+          example: 256
+      responses:
+        "200":
+          description: Allocated; reports the running total.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "held 256 MB\n"
+        "400":
+          description: Missing or non-positive `mb`.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "usage: /eat?mb=N  (N > 0)\n"
+
+  /free:
+    get:
+      operationId: freeMemory
+      summary: Release all held memory.
+      description: Drops the references, runs the GC and returns the pages to the kernel.
+      responses:
+        "200":
+          description: Released.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "released, holding 0 MB\n"
+
+  /burn:
+    get:
+      operationId: burnCPU
+      summary: Pin N cores in a busy loop.
+      description: |
+        Starts N burners, each locked to its own OS thread so the load is steady
+        and CPU throttling counters stay readable. Returns immediately; the
+        burners keep running until `/stop`.
+      parameters:
+        - name: n
+          in: query
+          required: false
+          description: Number of cores to load.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+      responses:
+        "200":
+          description: Burners started; reports the running total.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "burning on 1 core(s), GET /stop to stop\n"
+        "400":
+          description: Non-positive `n`.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "usage: /burn?n=N  (N > 0)\n"
+
+  /stop:
+    get:
+      operationId: stopBurn
+      summary: Stop all burners.
+      responses:
+        "200":
+          description: Stopped; reports how many were running.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "stopped 1 burner(s)\n"
+
+  /info:
+    get:
+      operationId: getInfo
+      summary: What the process sees about itself.
+      responses:
+        "200":
+          description: Process and isolation state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Info"
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPI
+      summary: This document.
+      description: Embedded in the binary, so it is served even from a scratch image.
+      responses:
+        "200":
+          description: The OpenAPI specification.
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+components:
+  schemas:
+    Info:
+      type: object
+      required: [pid, ppid, uid, euid, gid, hostname, num_cpu, held_mb, burners]
+      properties:
+        pid:
+          type: integer
+          description: PID in the process's own pid namespace — 1 when it is the namespace's init.
+          example: 1
+        ppid:
+          type: integer
+          example: 0
+        uid:
+          type: integer
+          description: uid inside the user namespace; the host may map it to something else entirely.
+          example: 0
+        euid:
+          type: integer
+          example: 0
+        gid:
+          type: integer
+          example: 0
+        hostname:
+          type: string
+          description: From the UTS namespace.
+          example: mydocker
+        num_cpu:
+          type: integer
+          description: |
+            Cores visible to the Go runtime. Note this does not shrink under a CPU
+            cgroup limit — cpuinfo is not namespaced.
+          example: 8
+        held_mb:
+          type: integer
+          description: Memory currently held by `/eat`.
+          example: 256
+        burners:
+          type: integer
+          description: Cores currently being burned.
+          example: 1
+        cgroup:
+          type: string
+          description: Contents of /proc/self/cgroup. Absent off Linux.
+          example: "0::/mydocker/api"
+        proc_status:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Selected fields of /proc/self/status. `NSpid` lists the pid in every
+            nested pid namespace, `Cap*` the capability sets, `Seccomp` whether a
+            filter is loaded. Absent off Linux or when /proc is not mounted.
+          example:
+            NSpid: "1 4242"
+            CapEff: "0000000000000400"
+            NoNewPrivs: "1"
+            Seccomp: "2"
