@@ -1,0 +1,8 @@
+FROM golang:1.27
+
+WORKDIR /src
+COPY api/ ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /usr/local/bin/api .
+
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/api"]
