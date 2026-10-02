@@ -1,0 +1,57 @@
+# Three alerts for part 8. Each watches a container against its own cgroup
+# limit; containers without a memory limit (the monitoring stack) are skipped.
+groups:
+  - name: lab1-containers
+    rules:
+      # Predicts: the container is about to be OOM-killed. Fires before the
+      # kill - but only if memory grows slower than `for`, which is why the
+      # restart alert below exists too.
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          container_memory_working_set_bytes{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"}
+            / (container_spec_memory_limit_bytes{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"} > 0 < 1e18)
+            > 0.9
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.id }}: memory at {{ $value | humanizePercentage }} of memory.max"
+          description: >-
+            The next page fault that does not fit triggers reclaim and then the
+            OOM killer inside this cgroup.
+
+      # Already hurting: the container keeps running out of CPU quota, so
+      # requests wait for the next period - latency, not an outage.
+      - alert: ContainerCPUThrottled
+        expr: |
+          rate(container_cpu_cfs_throttled_periods_total{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"}[5m])
+            / rate(container_cpu_cfs_periods_total{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"}[5m])
+            > 0.25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.id }}: throttled in {{ $value | humanizePercentage }} of CFS periods"
+          description: >-
+            cpu.max quota is exhausted before the period ends. Average CPU can
+            still look low if the load is bursty.
+
+      # Already happened: the process was killed (OOM or a crash) and the
+      # container started again. container_oom_events_total alone is not
+      # enough: the counter lives in the cgroup the kill destroys, so it is
+      # often gone before the next scrape. A restart recreates the cgroup and
+      # changes its start time - that survives.
+      - alert: ContainerOOMKilledOrRestarted
+        expr: |
+          (
+            changes(container_start_time_seconds{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"}[10m]) > 0
+            or increase(container_oom_events_total{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"}[10m]) > 0
+          )
+          and on(id) (container_spec_memory_limit_bytes{id=~"/system.slice/docker-.+[.]scope|/mydocker-.+"} > 0 < 1e18)
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.id }}: restarted or OOM-killed in the last 10m"
+          description: >-
+            In-flight requests and in-memory state are lost. Repeated restarts
+            are a crash loop.
