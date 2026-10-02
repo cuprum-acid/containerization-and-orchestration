@@ -1,0 +1,53 @@
+{
+  "defaultAction": "SCMP_ACT_ALLOW",
+  "syscalls": [
+    {
+      "comment": "rebuild or leave the isolation: new namespaces, joining others, the mount table",
+      "names": ["unshare", "setns", "mount", "umount2", "pivot_root"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "the new mount API (5.2+) does what mount does; blocking mount alone is a bypass",
+      "names": ["fsopen", "fsconfig", "fsmount", "fspick", "move_mount", "open_tree", "mount_setattr"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "clone3 keeps its flags in memory where BPF cannot read them, so namespace flags cannot be filtered; ENOSYS makes libc fall back to clone",
+      "names": ["clone3"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38
+    },
+    {
+      "comment": "host identity",
+      "names": ["sethostname", "setdomainname"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "the system clock is not namespaced",
+      "names": ["settimeofday", "clock_settime", "clock_adjtime", "adjtimex"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "the kernel itself: modules, kexec, reboot",
+      "names": ["init_module", "finit_module", "delete_module", "kexec_load", "kexec_file_load", "reboot"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "reading and writing other processes' memory",
+      "names": ["ptrace", "process_vm_readv", "process_vm_writev"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    },
+    {
+      "comment": "large kernel attack surface the service never needs; keyrings are not namespaced",
+      "names": ["bpf", "perf_event_open", "userfaultfd", "keyctl", "add_key", "request_key"],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 1
+    }
+  ]
+}
