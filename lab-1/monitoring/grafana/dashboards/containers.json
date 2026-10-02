@@ -1,0 +1,655 @@
+{
+  "uid": "lab1-containers",
+  "title": "Lab 1 - containers vs their limits",
+  "tags": [
+    "lab-1",
+    "cgroups"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Memory, % of memory.max",
+      "description": "working set / memory.max. Near 100% the next page fault means reclaim, then OOM kill.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((container_memory_working_set_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)) / (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18) * 100, \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "CPU throttled periods, %",
+      "description": "Share of CFS periods in which the container ran out of quota and was stopped.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace(((rate(container_cpu_cfs_throttled_periods_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) / rate(container_cpu_cfs_periods_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) * 100) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Restarts / OOM kills, last 1h",
+      "description": "Restarts = changes of the cgroup start time; OOM = container_oom_events_total. The OOM counter lives in the cgroup that the kill destroys, so it is often lost - the restart is not.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((changes(container_start_time_seconds{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1h]) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Tasks, % of pids.max",
+      "description": "Threads + processes against pids.max. At 100% fork/clone fail with EAGAIN.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((container_threads{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)) / ((container_threads_max{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)) * 100, \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory: working set vs memory.max",
+      "description": "working_set = usage minus inactive file cache - what the OOM killer is judged against.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((container_memory_working_set_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} working set",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} limit",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*limit.*"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "CPU: usage vs cpu.max quota",
+      "description": "Cores used, against quota/period in cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((rate(container_cpu_usage_seconds_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} usage",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace(((container_spec_cpu_quota{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} / container_spec_cpu_period{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} limit",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*limit.*"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "CPU throttling, % of periods",
+      "description": "rate(throttled_periods) / rate(periods). High here with low average CPU = bursty workload hitting the quota.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace(((rate(container_cpu_cfs_throttled_periods_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) / rate(container_cpu_cfs_periods_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) * 100) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Tasks vs pids.max",
+      "description": "container_threads against container_threads_max (pids.max).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((container_threads{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} tasks",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace(((container_threads_max{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} limit",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*limit.*"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Restarts and OOM kills",
+      "description": "Per minute: restarts (cgroup start time changed) and OOM events, when cAdvisor manages to catch them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace((changes(container_start_time_seconds{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]) and on(id) (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"} > 0 < 1e18)), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} restart",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prom"
+          },
+          "expr": "label_replace(increase(container_oom_events_total{id=~\"/system.slice/docker-.+[.]scope|/mydocker-.+\"}[1m]), \"c\", \"$1\", \"id\", \".*/(docker-[0-9a-f]{12}|mydocker-[0-9]+).*\")",
+          "legendFormat": "{{c}} oom",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  }
+}
