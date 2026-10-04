@@ -1,0 +1,9 @@
+# Karma v0.133 from zekker6/karma 0.22.0: a dashboard of active alerts over
+# Alertmanager, with grouping and filters.
+#
+#   helm upgrade --install karma zekker6/karma --version 0.22.0 -n monitoring -f helm/karma.yaml
+
+env:
+  ALERTMANAGER_URI: http://kps-alertmanager.monitoring.svc:9093
+  # The name shown in Karma for this Alertmanager.
+  ALERTMANAGER_NAME: lab-2
