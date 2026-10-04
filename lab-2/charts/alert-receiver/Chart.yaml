@@ -1,0 +1,6 @@
+apiVersion: v2
+name: alert-receiver
+description: Alertmanager webhook receiver for the lab - logs every notification it gets.
+type: application
+version: 0.2.0
+appVersion: "42"
