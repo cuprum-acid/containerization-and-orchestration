@@ -1,0 +1,131 @@
+# kube-prometheus-stack 91.8.2: Prometheus Operator, Prometheus, Alertmanager,
+# Grafana, kube-state-metrics, node-exporter.
+#
+#   helm upgrade --install kps prometheus-community/kube-prometheus-stack \
+#     --version 91.8.2 -n monitoring --create-namespace -f helm/kube-prometheus-stack.yaml
+
+# Short object names: "kps-prometheus" instead of
+# "kps-kube-prometheus-stack-prometheus".
+fullnameOverride: kps
+
+# minikube does not expose these control-plane components to scrapes; left on,
+# they only produce permanently firing TargetDown alerts.
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+
+defaultRules:
+  disabled:
+    # The minikube node is a container without NTP: this one fires forever
+    # and only clutters Alertmanager and Karma.
+    NodeClockNotSynchronising: true
+
+prometheus:
+  prometheusSpec:
+    # By default the operator only picks up ServiceMonitors and rules that
+    # carry this release's label. Select all of them instead, so the api chart
+    # and the other charts can ship their own without knowing the release name.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 2d
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits: { memory: 1Gi }
+
+alertmanager:
+  # Replaces the chart's default config: everything goes to the webhook
+  # receiver, grouped per alert and namespace.
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: webhook
+      group_by: [alertname, namespace]
+      group_wait: 10s       # wait for siblings before the first notification
+      group_interval: 1m    # how often a changed group is re-sent
+      repeat_interval: 1h   # how often an unchanged firing group is re-sent
+      routes:
+        # Watchdog fires all the time on purpose (a dead-man's switch for the
+        # alerting pipeline itself); InfoInhibitor exists only to inhibit.
+        - receiver: "null"
+          matchers: ['alertname = "Watchdog"']
+        - receiver: "null"
+          matchers: ['alertname = "InfoInhibitor"']
+    inhibit_rules:
+      # A critical alert silences the warning of the same name and namespace.
+      - source_matchers: ['severity = "critical"']
+        target_matchers: ['severity = "warning"']
+        equal: [alertname, namespace]
+    receivers:
+      - name: "null"
+      - name: webhook
+        webhook_configs:
+          - url: http://alert-receiver.monitoring.svc:8080/alertmanager
+            send_resolved: true
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 128Mi }
+
+grafana:
+  # Admin credentials come from a Secret that is not in git - only its name
+  # is. Created once, with a random password:
+  #   kubectl -n monitoring create secret generic grafana-admin \
+  #     --from-literal=admin-user=admin \
+  #     --from-literal=admin-password="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
+  # Read it back:
+  #   kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  # Dashboards come from ConfigMaps labelled grafana_dashboard=1 in any
+  # namespace - the api chart ships its own RED dashboard that way.
+  sidecar:
+    dashboards:
+      searchNamespace: ALL
+  # Prometheus is provisioned by the chart; Loki is added next to it, so
+  # metrics and logs are in one Grafana.
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      url: http://loki.monitoring.svc:3100
+      access: proxy
+      jsonData:
+        # trace_id arrives as structured metadata (see Alloy); turn it into
+        # links to the same trace: inside Grafana (Jaeger datasource) and in
+        # the Jaeger UI itself (localhost:16686 is the port-forward).
+        # $$ escapes $ from Grafana's env-var expansion in provisioning.
+        derivedFields:
+          - name: TraceID
+            matcherType: label
+            matcherRegex: trace_id
+            datasourceUid: jaeger
+            url: "$${__value.raw}"
+            urlDisplayLabel: Trace in Grafana
+          - name: TraceID
+            matcherType: label
+            matcherRegex: trace_id
+            url: "http://localhost:16686/trace/$${__value.raw}"
+            urlDisplayLabel: Open in Jaeger UI
+    - name: Jaeger
+      uid: jaeger
+      type: jaeger
+      url: http://jaeger.monitoring.svc:16686
+      access: proxy
+      jsonData:
+        # The other direction: from a span to the log lines of its trace.
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: "-1m"
+          spanEndTimeShift: "1m"
+          customQuery: true
+          query: '{namespace="app", app="api"} | trace_id="$${__trace.traceId}"'
+  # 384Mi was too tight for Grafana 13: it stopped answering /api/health in
+  # time and was killed by its liveness probe.
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
