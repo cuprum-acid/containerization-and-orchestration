@@ -1,0 +1,7 @@
+apiVersion: v2
+name: api
+description: The lab 2 service - RED metrics, JSON logs with trace_id, OpenTelemetry traces.
+type: application
+version: 0.2.0
+kubeVersion: ">=1.29.0-0"
+appVersion: "lab2"

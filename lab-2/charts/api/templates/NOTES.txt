@@ -1,0 +1,16 @@
+api {{ include "api.image" . }} is deployed as "{{ include "api.fullname" . }}" in namespace {{ .Release.Namespace }}.
+
+Reach it:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "api.fullname" . }} 18080:8080
+  curl localhost:18080/health
+
+Make some noise for the monitoring:
+  curl 'localhost:18080/load?n=50'     # a burst of /health
+  curl localhost:18080/fail            # 500, error span, ERROR log
+  curl localhost:18080/slow            # 1-3 s inside the slow-op span
+
+Wired up:
+  traces    {{ if .Values.otlpEndpoint }}-> {{ .Values.otlpEndpoint }}{{ else }}not exported (otlpEndpoint is empty){{ end }}
+  metrics   {{ if .Values.serviceMonitor.enabled }}ServiceMonitor on /metrics every {{ .Values.serviceMonitor.interval }}{{ else }}no ServiceMonitor{{ end }}
+  dashboard {{ if .Values.dashboard.enabled }}"api - RED" in Grafana{{ else }}off{{ end }}
+  alerts    {{ if .Values.alerts.enabled }}ApiHighErrorRate, ApiHighLatency, ApiDown{{ else }}off{{ end }}

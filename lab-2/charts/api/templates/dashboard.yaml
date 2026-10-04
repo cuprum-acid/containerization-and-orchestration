@@ -1,0 +1,14 @@
+{{- if .Values.dashboard.enabled }}
+# Grafana's sidecar loads every ConfigMap labelled grafana_dashboard=1, in any
+# namespace: the dashboard ships and versions together with the service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "api.fullname" . }}-dashboard-red
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  api-red.json: |-
+{{ .Files.Get "dashboards/red.json" | indent 4 }}
+{{- end }}
