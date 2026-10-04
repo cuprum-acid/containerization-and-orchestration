@@ -1,0 +1,11 @@
+.app = string(.kubernetes.pod_labels."app.kubernetes.io/name") ?? "unknown"
+parsed, err = parse_json(.message)
+if err == null && is_object(parsed) {
+  parsed.vector_says = "привет из Vector"
+  .level = string(parsed.level) ?? "unknown"
+  .trace_id = string(parsed.trace_id) ?? ""
+  .message = encode_json(parsed)
+} else {
+  .level = "unknown"
+  .trace_id = ""
+}
