@@ -1,0 +1,16 @@
+# api chart, as deployed in the lab.
+#
+#   helm upgrade --install api charts/api -n app --create-namespace -f helm/api.yaml
+
+dashboard:
+  enabled: true
+
+alerts:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
+# OTLP/HTTP to Jaeger's collector port. The SDK appends /v1/traces itself.
+otlpEndpoint: http://jaeger.monitoring.svc:4318
