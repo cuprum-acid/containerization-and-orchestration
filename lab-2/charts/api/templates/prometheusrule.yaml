@@ -1,0 +1,69 @@
+{{- if .Values.alerts.enabled }}
+# Three critical alerts for the api, shipped with the service like its
+# dashboard. Each one has a runbook: runbooks/<alertname>.md.
+{{- /* job is the Service name, set by the ServiceMonitor */}}
+{{- $sel := printf "job=\"%s\", namespace=\"%s\"" (include "api.fullname" .) .Release.Namespace }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "api.fullname" . }}
+  labels:
+    {{- include "api.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: api.rules
+      rules:
+        # Users get errors. The traffic floor keeps one failed request out of
+        # two from paging anyone: below 0.1 req/s the ratio is noise.
+        - alert: ApiHighErrorRate
+          expr: |
+            (
+              sum by (namespace) (rate(http_request_errors_total{ {{- $sel -}} }[2m]))
+                /
+              sum by (namespace) (rate(http_requests_total{ {{- $sel -}} }[2m]))
+            ) > {{ .Values.alerts.errorRatio }}
+            and
+            sum by (namespace) (rate(http_requests_total{ {{- $sel -}} }[2m])) > 0.1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "api: {{`{{ $value | humanizePercentage }}`}} of requests fail"
+            description: >-
+              More than {{ mulf .Values.alerts.errorRatio 100 }}% of requests to the api end with 5xx for 2 minutes.
+            runbook_url: {{ .Values.alerts.runbookBaseUrl }}/ApiHighErrorRate.md
+
+        # Users wait. Per route, not for the whole service: a rare slow
+        # endpoint disappears in the service-wide p95 (part 2: 4.84 ms overall
+        # while /slow took 3 s).
+        - alert: ApiHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, route, le) (rate(http_request_duration_seconds_bucket{ {{- $sel -}} }[5m]))
+            ) > {{ .Values.alerts.latencySeconds }}
+            and
+            sum by (namespace, route) (rate(http_request_duration_seconds_count{ {{- $sel -}} }[5m])) > 0.05
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "api {{`{{ $labels.route }}`}}: p95 is {{`{{ $value | humanizeDuration }}`}}"
+            description: >-
+              95th percentile of {{`{{ $labels.route }}`}} is above {{ .Values.alerts.latencySeconds }}s for 3 minutes.
+            runbook_url: {{ .Values.alerts.runbookBaseUrl }}/ApiHighLatency.md
+
+        # Nothing to measure. When the pods are gone, the target disappears
+        # and up{} has no series at all - `up == 0` would never fire, absent()
+        # does.
+        - alert: ApiDown
+          expr: absent(up{ {{- $sel -}} } == 1)
+          for: 1m
+          labels:
+            severity: critical
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "api: no instance is up"
+            description: >-
+              Prometheus has no reachable api instance for 1 minute: the service is down, or scraping is broken.
+            runbook_url: {{ .Values.alerts.runbookBaseUrl }}/ApiDown.md
+{{- end }}

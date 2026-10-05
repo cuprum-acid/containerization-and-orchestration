@@ -1,0 +1,23 @@
+# Grafana Alloy from grafana/alloy 1.13.0 as the node log agent: a DaemonSet,
+# one pod per node, tailing container log files and pushing them to Loki.
+#
+#   helm upgrade --install alloy grafana/alloy --version 1.13.0 -n monitoring \
+#     -f helm/alloy.yaml --set-file alloy.configMap.content=helm/files/config.alloy
+#
+# The pipeline itself is a real Alloy file, helm/files/config.alloy: it gets
+# syntax highlighting, diffs and can be checked before rollout:
+#   docker run --rm -v "$PWD/helm/files:/c" grafana/alloy:v1.20.1 fmt /c/config.alloy
+
+image:
+  tag: v1.20.1
+
+controller:
+  type: daemonset
+
+alloy:
+  # Container logs live on the node under /var/log/pods; mount it read-only.
+  mounts:
+    varlog: true
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }

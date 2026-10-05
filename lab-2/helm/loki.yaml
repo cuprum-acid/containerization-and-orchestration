@@ -1,0 +1,50 @@
+# Loki 3.7 from grafana-community/loki 18.13.7, as one process on a local disk.
+# The chart defaults target production: S3, replication factor 3, three
+# read/write/backend replicas, memcached caches and a canary. A one-node lab
+# needs none of that.
+#
+#   helm upgrade --install loki oci://ghcr.io/grafana-community/helm-charts/loki \
+#     --version 18.13.7 -n monitoring -f helm/loki.yaml
+
+deploymentMode: Monolithic
+
+loki:
+  # Single tenant: no X-Scope-OrgID header needed from Alloy or Grafana.
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2026-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 48h
+    allow_structured_metadata: true
+
+singleBinary:
+  replicas: 1
+  persistence:
+    size: 5Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+# Scalable targets off: Monolithic runs everything in singleBinary.
+write: { replicas: 0 }
+read: { replicas: 0 }
+backend: { replicas: 0 }
+
+# Production extras the lab does not need.
+chunksCache: { enabled: false }
+resultsCache: { enabled: false }
+lokiCanary: { enabled: false }
+test: { enabled: false }
+# Alloy and Grafana talk to the loki Service on :3100 directly.
+gateway: { enabled: false }

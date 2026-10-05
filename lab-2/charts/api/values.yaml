@@ -1,0 +1,34 @@
+image:
+  # Built straight into the cluster: minikube image build -t api:lab2 .
+  repository: api
+  # Empty = the chart's appVersion.
+  tag: ""
+  pullPolicy: Never
+
+replicas: 1
+
+# OTLP/HTTP endpoint for traces. Empty = tracing SDK on (trace_id in logs),
+# but nothing is exported.
+otlpEndpoint: ""
+
+resources:
+  requests: { cpu: 50m, memory: 32Mi }
+  limits: { memory: 128Mi }
+
+# RED dashboard as a ConfigMap for Grafana's dashboard sidecar.
+dashboard:
+  enabled: false
+
+# Critical alerts as a PrometheusRule (needs the CRD from kube-prometheus-stack).
+alerts:
+  enabled: false
+  errorRatio: 0.05
+  latencySeconds: 2
+  runbookBaseUrl: https://github.com/cuprum-acid/containerization-and-orchestration/blob/main/lab-2/runbooks
+
+# Needs the ServiceMonitor CRD, which arrives with kube-prometheus-stack.
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  # kube-prometheus-stack only picks up ServiceMonitors carrying its release label.
+  labels: {}

@@ -1,0 +1,50 @@
+# Jaeger 2.20 from jaegertracing/jaeger 4.13.1: one pod, traces in memory.
+# Not 2.21: it removed the v1 HTTP API (/api/services, /api/operations,
+# /api/traces search; jaegertracing/jaeger#9260) that Grafana's Jaeger
+# datasource still uses by default - its api_v3 client sits behind the
+# experimental jaegerEnableGrpcEndpoint flag and does not cover search yet.
+# Jaeger v2 is built on the OpenTelemetry Collector, so its config is a
+# Collector pipeline: OTLP receiver -> batch -> storage exporter.
+#
+#   helm upgrade --install jaeger jaegertracing/jaeger --version 4.13.1 -n monitoring -f helm/jaeger.yaml
+
+userconfig:
+  service:
+    extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [jaeger_storage_exporter]
+  extensions:
+    healthcheckv2:
+      use_v2: true
+      http:
+        endpoint: 0.0.0.0:13133
+    jaeger_query:
+      storage:
+        traces: memstore
+    jaeger_storage:
+      backends:
+        memstore:
+          memory:
+            # In memory and lost on restart; the cap keeps it from eating
+            # the node.
+            max_traces: 20000
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch: {}
+  exporters:
+    jaeger_storage_exporter:
+      trace_storage: memstore
+
+jaeger:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }

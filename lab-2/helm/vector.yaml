@@ -1,0 +1,66 @@
+# Vector 0.58 from vector/vector 0.58.0 as a second node log agent, next to
+# Alloy. The work is split by namespace so nothing is shipped twice: Vector
+# takes the logs of namespace app, Alloy everything else (see helm/alloy.yaml).
+#
+#   helm upgrade --install vector vector/vector --version 0.58.0 -n monitoring -f helm/vector.yaml \
+#     --set-file customConfig.transforms.api_json.source=helm/files/api.vrl
+
+# Agent = DaemonSet with /var/log mounted and RBAC to read pod metadata.
+role: Agent
+
+# The chart derives Service ports from sources that listen; this agent only
+# reads files, so the Service would have no ports and fail validation.
+service:
+  enabled: false
+serviceHeadless:
+  enabled: false
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 256Mi }
+
+customConfig:
+  data_dir: /vector-data-dir
+  api:
+    enabled: false
+
+  sources:
+    app_pods:
+      type: kubernetes_logs
+      # Only namespace app - the other half of the split with Alloy.
+      extra_field_selector: metadata.namespace=app
+      # Without a checkpoint Vector starts at the beginning of every log file:
+      # the whole history Alloy already shipped would go to Loki a second time.
+      read_from: end
+
+  transforms:
+    api_json:
+      type: remap
+      inputs: [app_pods]
+      # VRL: parse the line, add a field on the fly, lift level and trace_id
+      # out for labels and structured metadata. The program lives in
+      # helm/files/api.vrl and is passed with --set-file (see top).
+      source: ""
+
+  sinks:
+    loki:
+      type: loki
+      inputs: [api_json]
+      endpoint: http://loki.monitoring.svc:3100
+      # Ship only .message, i.e. the rewritten JSON line.
+      encoding:
+        codec: text
+      # {{ "{{ x }}" }} is Helm escaping: the chart runs customConfig through
+      # tpl, and Vector's own {{ x }} templates must reach Vector untouched.
+      # Same labels Alloy produces, so every Grafana query and the RED
+      # workflow keep working; plus agent= to see who shipped the line.
+      labels:
+        namespace: '{{ "{{ kubernetes.pod_namespace }}" }}'
+        pod: '{{ "{{ kubernetes.pod_name }}" }}'
+        container: '{{ "{{ kubernetes.container_name }}" }}'
+        app: '{{ "{{ app }}" }}'
+        level: '{{ "{{ level }}" }}'
+        agent: vector
+      # trace_id as structured metadata, as with Alloy: searchable, not indexed.
+      structured_metadata:
+        trace_id: '{{ "{{ trace_id }}" }}'
