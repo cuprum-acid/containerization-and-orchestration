@@ -1,0 +1,19 @@
+# Passes every policy: the reference the bad ones are derived from.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: good
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: probe
+    app.kubernetes.io/part-of: shop
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: shop.local/api:1.0.0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi

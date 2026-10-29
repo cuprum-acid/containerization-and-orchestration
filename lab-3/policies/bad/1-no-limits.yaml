@@ -1,0 +1,16 @@
+# Violates require-resource-limits: no resources at all.
+# Everything else is the same as good.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-no-limits
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: probe
+    app.kubernetes.io/part-of: shop
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: shop.local/api:1.0.0

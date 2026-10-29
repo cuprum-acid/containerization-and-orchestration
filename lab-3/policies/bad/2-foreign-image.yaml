@@ -1,0 +1,20 @@
+# Violates restrict-image-registries: nginx from Docker Hub.
+# Everything else is the same as good.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-foreign-image
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: probe
+    app.kubernetes.io/part-of: shop
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: docker.io/library/nginx:1.29
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi

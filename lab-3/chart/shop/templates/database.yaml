@@ -1,0 +1,33 @@
+{{- if .Values.database.enabled }}
+# We describe the database we want; the CloudNativePG operator creates and
+# keeps alive the pods, PVCs, Services and Secrets that make it real.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}-db
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/component: database
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  instances: {{ .Values.database.instances }}
+  storage:
+    size: {{ .Values.database.storage }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
+  # Creates database "shop" owned by user "shop" and the Secret
+  # <cluster>-app with its credentials and a ready-made "uri" key.
+  bootstrap:
+    initdb:
+      database: shop
+      owner: shop
+  # Labels on the Cluster itself stay on the Cluster. Everything the operator
+  # creates (pods, Jobs, PVCs) gets these instead - the require-labels policy
+  # needs them on the pods.
+  inheritedMetadata:
+    labels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/part-of: shop
+{{- end }}

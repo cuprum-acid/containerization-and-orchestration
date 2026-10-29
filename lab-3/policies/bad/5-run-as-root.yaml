@@ -1,0 +1,22 @@
+# Violates require-run-as-non-root: the container overrides the pod's setting.
+# Everything else is the same as good.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-run-as-root
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: probe
+    app.kubernetes.io/part-of: shop
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: shop.local/api:1.0.0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    securityContext:
+      runAsNonRoot: false

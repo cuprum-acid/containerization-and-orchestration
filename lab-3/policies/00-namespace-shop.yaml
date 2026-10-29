@@ -1,0 +1,9 @@
+# The shop's namespace. env: prod switches on the policies meant for
+# production only (no :latest tags); all other guardrails apply to every
+# non-system namespace anyway.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shop
+  labels:
+    env: prod

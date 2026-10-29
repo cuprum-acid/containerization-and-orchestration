@@ -1,0 +1,28 @@
+# Kyverno 1.19.1 from kyverno/kyverno 3.9.1.
+crds:
+  migration:
+    podResources:
+      limits: null
+webhooksCleanup:
+  resources:
+    limits: null
+admissionController:
+  replicas: 1
+  initContainer:
+    resources:
+      limits: null
+  container:
+    resources:
+      limits: null
+backgroundController:
+  replicas: 1
+  resources:
+    limits: null
+cleanupController:
+  replicas: 1
+  resources:
+    limits: null
+reportsController:
+  replicas: 1
+  resources:
+    limits: null

@@ -1,0 +1,19 @@
+# Violates require-labels: app.kubernetes.io/part-of is missing.
+# Everything else is the same as good.yaml.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-no-labels
+  namespace: shop
+  labels:
+    app.kubernetes.io/name: probe
+spec:
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: shop.local/api:1.0.0
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
