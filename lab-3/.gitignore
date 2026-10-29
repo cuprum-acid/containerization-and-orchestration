@@ -1,0 +1,13 @@
+# build output
+bin/
+api/api
+*.test
+*.out
+
+# local environment
+.env
+*.local
+
+*.cast
+*.log
+.DS_Store
