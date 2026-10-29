@@ -1,0 +1,37 @@
+# Every container must declare cpu and memory limits.
+#
+# Why: a container without limits can take the whole node - one memory leak
+# and the kubelet starts evicting neighbours, one busy loop and everything on
+# the node gets throttled. Limits also put the pod into a QoS class the
+# scheduler and the kubelet can reason about.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    # Opt-out scope: everything except the cluster's own namespaces. A new
+    # namespace is protected from the start, nobody has to remember a label.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno, monitoring, cnpg-system]
+  variables:
+    # Init containers can eat a node just as well.
+    - name: containers
+      expression: >-
+        object.spec.containers +
+        (has(object.spec.initContainers) ? object.spec.initContainers : [])
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          has(c.resources) && has(c.resources.limits) &&
+          'cpu' in c.resources.limits && 'memory' in c.resources.limits)
+      message: "every container must set resources.limits.cpu and resources.limits.memory"

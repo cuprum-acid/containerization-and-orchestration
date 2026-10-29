@@ -1,0 +1,43 @@
+# Containers must run as non-root: runAsNonRoot: true, set on the container
+# or inherited from the pod.
+#
+# Why: root in a container is root on the host as far as the kernel is
+# concerned (lab 1, part 5: no user namespace by default). With
+# runAsNonRoot the kubelet refuses to start an image whose user is 0, so a
+# breakout lands as an unprivileged uid.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-run-as-non-root
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno, monitoring, cnpg-system]
+  variables:
+    - name: containers
+      expression: >-
+        object.spec.containers +
+        (has(object.spec.initContainers) ? object.spec.initContainers : [])
+    # The pod-level setting is the default for every container.
+    - name: podNonRoot
+      expression: >-
+        has(object.spec.securityContext) &&
+        has(object.spec.securityContext.runAsNonRoot) &&
+        object.spec.securityContext.runAsNonRoot == true
+  validations:
+    # A container-level value overrides the pod-level one, in both directions.
+    - expression: >-
+        variables.containers.all(c,
+          has(c.securityContext) && has(c.securityContext.runAsNonRoot)
+            ? c.securityContext.runAsNonRoot == true
+            : variables.podNonRoot)
+      message: "set securityContext.runAsNonRoot: true on the pod or on every container"

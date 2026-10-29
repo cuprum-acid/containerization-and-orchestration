@@ -1,0 +1,33 @@
+# Every pod must say what it is and which system it belongs to:
+# app.kubernetes.io/name and app.kubernetes.io/part-of.
+#
+# Why: labels are how everything else finds a workload - Service selectors,
+# ServiceMonitors, NetworkPolicies, `kubectl get -l`, dashboards and cost
+# reports. An unlabelled pod is invisible to all of them and nobody can say
+# whose it is during an incident.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-labels
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno, monitoring, cnpg-system]
+  variables:
+    - name: required
+      expression: "['app.kubernetes.io/name', 'app.kubernetes.io/part-of']"
+    - name: labels
+      expression: "has(object.metadata.labels) ? object.metadata.labels : {}"
+  validations:
+    - expression: "variables.required.all(l, l in variables.labels && variables.labels[l] != '')"
+      messageExpression: >-
+        'missing labels: ' + variables.required.filter(l, !(l in variables.labels)).join(', ')
