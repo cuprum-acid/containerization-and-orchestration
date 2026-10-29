@@ -1,0 +1,7 @@
+apiVersion: v2
+name: shop
+description: The shop for lab 3 - api, worker and Postgres through CloudNativePG, built to pass the cluster's Kyverno guardrails.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.33.0-0"

@@ -1,0 +1,195 @@
+{{- if .Values.monitoring.enabled }}
+# Prometheus from lab 2 is driven by prometheus-operator: it does not read
+# scrape configs from us, it watches ServiceMonitor/PodMonitor objects and
+# rewrites its own config. Its selectors are empty, so it picks these up from
+# any namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: shop
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  # Only our two Services. The operator's shop-db-* Services carry
+  # part-of: shop too, but have no /metrics on port http.
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [api, worker]
+  # The Service is only a way to find pods: Prometheus resolves it through
+  # EndpointSlices and scrapes every pod separately.
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.interval }}
+{{- if .Values.database.enabled }}
+---
+# Postgres has no Service with a metrics port - the exporter runs inside each
+# instance pod on port "metrics" (9187), so we select pods directly.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Release.Name }}-db
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: {{ .Release.Name }}-db
+      cnpg.io/podRole: instance
+  podMetricsEndpoints:
+    - port: metrics
+      interval: {{ .Values.monitoring.interval }}
+{{- end }}
+---
+# Picked up by prometheus-operator the same way and loaded into Prometheus as
+# a rule file. Firing alerts go to the Alertmanager from lab 2.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: shop
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  groups:
+    - name: shop.api
+      rules:
+        # What the customer feels. A ratio, not a count: it means the same at
+        # 1 request a minute and at 1000 a second.
+        - alert: ShopApiErrorRatioHigh
+          expr: |
+            sum by (namespace) (rate(http_requests_total{namespace="{{ .Release.Namespace }}", job="{{ .Release.Name }}-api", code=~"5.."}[5m]))
+              /
+            sum by (namespace) (rate(http_requests_total{namespace="{{ .Release.Namespace }}", job="{{ .Release.Name }}-api"}[5m]))
+              > 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: More than 5% of api responses are 5xx
+            description: {{`'{{ $value | humanizePercentage }} of requests to api in {{ $labels.namespace }} fail with 5xx.'`}}
+
+    - name: shop.worker
+      rules:
+        # Workers are not processing at all: the database is gone, a query
+        # hangs, the workers are stuck. Alert on the absence of success, not on
+        # the presence of errors - a hung query produces no errors either.
+        # The second half covers "no worker is running", when the gauge
+        # itself disappears.
+        - alert: ShopWorkerStalled
+          expr: |
+            time() - max by (namespace) (shop_worker_last_success_timestamp_seconds{namespace="{{ .Release.Namespace }}"}) > 60
+              or
+            absent(up{namespace="{{ .Release.Namespace }}", job="{{ .Release.Name }}-worker"} == 1)
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Workers have not processed a batch for over a minute
+            description: Orders are piling up. More workers will not help - find out why the existing ones stopped.
+
+        # Workers are processing but cannot keep up. Every worker reports the
+        # same global count, hence max, not sum. min_over_time: the queue did
+        # not drop below the threshold even once in 10 minutes - a burst that
+        # is drained quickly never fires.
+        - alert: ShopOrderBacklogGrowing
+          expr: |
+            min_over_time(max by (namespace) (shop_orders_pending{namespace="{{ .Release.Namespace }}"})[10m:30s]) > 50
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Order queue has stayed above 50 for 10 minutes
+            description: {{`'{{ $value }} orders waiting. If ShopWorkerStalled is not firing, workers are alive but too few - scale worker.replicas.'`}}
+{{- if .Values.database.enabled }}
+
+    - name: shop.database
+      rules:
+        # The cause behind ShopApiErrorRatioHigh and ShopWorkerStalled. The
+        # exporter reconnects on every scrape, so it reports 0 as soon as
+        # Postgres stops accepting new connections - minutes before the
+        # app's pooled connections break. absent() covers the pod being gone.
+        # It must fire before the symptoms: inhibition only mutes alerts
+        # while the source is already firing.
+        - alert: ShopDatabaseDown
+          expr: |
+            max by (namespace) (cnpg_collector_up{namespace="{{ .Release.Namespace }}", cluster="{{ .Release.Name }}-db"}) == 0
+              or
+            absent(cnpg_collector_up{namespace="{{ .Release.Namespace }}", cluster="{{ .Release.Name }}-db"})
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Postgres is not accepting connections
+            description: {{`'No instance of {{ $labels.namespace }}/`}}{{ .Release.Name }}-db{{` answers. API errors and stalled workers in this namespace are muted as its symptoms.'`}}
+
+        # kubelet_volume_stats_* is not available for minikube's hostpath
+        # volumes, so "used" is assembled from Postgres itself: all databases
+        # plus WAL. Filesystem overhead and logs are not counted - a lower
+        # bound.
+        - record: shop:db_used_bytes
+          expr: |
+            sum by (namespace, pod) (cnpg_pg_database_size_bytes{namespace="{{ .Release.Namespace }}"})
+              +
+            sum by (namespace, pod) (cnpg_collector_pg_wal{namespace="{{ .Release.Namespace }}", value="size"})
+        # PVC size from kube-state-metrics, relabelled so it matches by pod:
+        # CNPG names the PVC after the instance pod.
+        - record: shop:db_capacity_bytes
+          expr: |
+            max by (namespace, pod) (label_replace(
+              kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="{{ .Release.Namespace }}", persistentvolumeclaim=~"{{ .Release.Name }}-db-[0-9]+"},
+              "pod", "$1", "persistentvolumeclaim", "(.*)"))
+        # Where the trend of the last 6 hours ends up in 4 hours. The 50% guard
+        # keeps a young, nearly empty volume from firing on WAL churn.
+        - alert: ShopDatabaseDiskFillingUp
+          expr: |
+            predict_linear(shop:db_used_bytes[6h], 4 * 3600) > shop:db_capacity_bytes
+              and
+            shop:db_used_bytes / shop:db_capacity_bytes > 0.5
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Postgres volume will be full within 4 hours
+            description: {{`'{{ $labels.pod }} is filling up. Grow database.storage (the operator resizes the PVC) or find what retains WAL.'`}}
+---
+# One page per incident: while the database is down, the alerts that only
+# repeat it are not sent. prometheus-operator merges this into the
+# Alertmanager config and adds namespace="<this namespace>" to both sides
+# itself, so a release can never mute alerts of another namespace.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: shop
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  inhibitRules:
+    - sourceMatch:
+        - name: alertname
+          value: ShopDatabaseDown
+          matchType: "="
+      targetMatch:
+        - name: alertname
+          value: ShopApiErrorRatioHigh|ShopWorkerStalled
+          matchType: "=~"
+      # The cause and its symptoms have different alertnames; what they
+      # share is the namespace the shop runs in.
+      equal: [namespace]
+{{- end }}
+{{- end }}

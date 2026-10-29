@@ -1,0 +1,47 @@
+# Images come from shop.local/ - the only registry the restrict-image-registries
+# policy trusts for our own code - with a fixed tag: :latest is denied in
+# env=prod namespaces.
+registry: shop.local
+
+api:
+  replicas: 3
+  image:
+    repository: api
+    tag: "1.2.0"
+  # true = a deliberately broken release: /health answers 503 (part 2).
+  healthFail: false
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+
+worker:
+  replicas: 2
+  image:
+    repository: worker
+    tag: "1.0.0"
+  healthFail: false
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+  batch: 10
+  interval: 2s
+
+# Postgres through CloudNativePG (part 3). Needs the operator installed first:
+# without its CRD the API server does not know what a Cluster is. On by
+# default: an upgrade that forgets --set database.enabled=true would delete
+# the Cluster, and the operator would delete its PVCs with it.
+database:
+  enabled: true
+  instances: 1
+  storage: 1Gi
+  # Applied to every container the operator creates, init containers and the
+  # initdb Job included - the require-resource-limits policy checks them all.
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+# ServiceMonitor/PodMonitor for the Prometheus from lab 2 (part 5). Needs the
+# prometheus-operator CRDs.
+monitoring:
+  enabled: true
+  interval: 15s

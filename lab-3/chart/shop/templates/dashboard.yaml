@@ -1,0 +1,21 @@
+{{- if .Values.monitoring.enabled }}
+# Grafana from lab 2 runs a sidecar that watches ConfigMaps with
+# grafana_dashboard: "1" in every namespace and loads them as dashboards.
+# The dashboard ships with the chart, so it is versioned together with the
+# metrics and alerts it shows.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-dashboard
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: shop
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  # .Files.Get does not render templates, so the Grafana legend placeholders
+  # in the JSON (double-brace code, pod) reach Grafana untouched.
+  shop.json: |-
+    {{- .Files.Get "dashboards/shop.json" | nindent 4 }}
+{{- end }}
