@@ -51,7 +51,7 @@ class OrderCreate(BaseModel):
     ticker: str
     side: Side
     quantity: int = Field(ge=1, description="Number of lots.")
-    price: Decimal = Field(gt=0, description="Limit price per share.")
+    limit_price: Decimal = Field(gt=0, description="Limit price per share.")
 
 
 class Order(OrderCreate):

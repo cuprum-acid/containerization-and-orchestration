@@ -204,9 +204,9 @@ components:
           minimum: 1.0
           title: Quantity
           description: Number of lots.
-        price:
+        limit_price:
           type: string
-          title: Price
+          title: Limit Price
           description: Limit price per share.
         id:
           type: string
@@ -223,7 +223,7 @@ components:
       - ticker
       - side
       - quantity
-      - price
+      - limit_price
       - id
       - status
       - created_at
@@ -240,19 +240,19 @@ components:
           minimum: 1.0
           title: Quantity
           description: Number of lots.
-        price:
+        limit_price:
           anyOf:
           - type: number
             exclusiveMinimum: 0.0
           - type: string
-          title: Price
+          title: Limit Price
           description: Limit price per share.
       type: object
       required:
       - ticker
       - side
       - quantity
-      - price
+      - limit_price
       title: OrderCreate
     OrderStatus:
       type: string
