@@ -83,7 +83,8 @@ def _quote(ticker: str) -> Quote:
     t = _instrument(ticker).ticker
     last = PRICES[t]
     spread = last * Decimal("0.0005")
-    return Quote(ticker=t, bid=last - spread, ask=last + spread, last=last,
+    cent = Decimal("0.01")
+    return Quote(ticker=t, bid=(last - spread).quantize(cent), ask=(last + spread).quantize(cent), last=last,
                  timestamp=datetime.now(timezone.utc))
 
 
