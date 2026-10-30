@@ -77,6 +77,7 @@ paths:
       - quotes
       summary: Get Quote V1
       operationId: get_quote_v1_v1_quotes__ticker__get
+      deprecated: true
       parameters:
       - name: ticker
         in: path
@@ -91,6 +92,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuoteV1'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v2/instruments/{ticker}/band:
+    get:
+      tags:
+      - instruments
+      summary: Get Price Band
+      operationId: get_price_band_v2_instruments__ticker__band_get
+      parameters:
+      - name: ticker
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticker
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceBand'
         '422':
           description: Validation Error
           content:
@@ -261,6 +288,23 @@ components:
       - filled
       - cancelled
       title: OrderStatus
+    PriceBand:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+        min_price:
+          type: string
+          title: Min Price
+        max_price:
+          type: string
+          title: Max Price
+      type: object
+      required:
+      - ticker
+      - min_price
+      - max_price
+      title: PriceBand
     Quote:
       properties:
         ticker:

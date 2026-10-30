@@ -113,10 +113,22 @@ class QuoteV1(BaseModel):
     price: Decimal
 
 
-@app.get("/v1/quotes/{ticker}", tags=["quotes"])
+@app.get("/v1/quotes/{ticker}", tags=["quotes"], deprecated=True)
 def get_quote_v1(ticker: str) -> QuoteV1:
     q = _quote(ticker)
     return QuoteV1(ticker=q.ticker, price=q.last)
+
+
+class PriceBand(BaseModel):
+    ticker: str
+    min_price: Decimal
+    max_price: Decimal
+
+
+@app.get("/v2/instruments/{ticker}/band", tags=["instruments"])
+def get_price_band(ticker: str) -> PriceBand:
+    last = _quote(ticker).last
+    return PriceBand(ticker=ticker.upper(), min_price=last * Decimal("0.8"), max_price=last * Decimal("1.2"))
 
 
 @app.post("/v2/orders", tags=["orders"], status_code=status.HTTP_201_CREATED)
