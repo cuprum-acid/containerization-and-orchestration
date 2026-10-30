@@ -1,6 +1,6 @@
 {
   "id": "IA2eEKyx3xq4VZ0z",
-  "name": "Release Tickerline API",
+  "name": "Release The Real Underground API",
   "active": false,
   "nodes": [
     {
@@ -163,7 +163,7 @@
         "nodeCredentialType": "githubApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  tag_name: $json.tagPrefix + '1.0.0',\n  target_commitish: $json.headSha,\n  name: 'Tickerline API 1.0.0',\n  body: 'Initial release of the Tickerline public API: instruments, quotes and orders.\\n\\nThe contract is `openapi.yaml`; from now on every release is checked against it.',\n  make_latest: 'true',\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  tag_name: $json.tagPrefix + '1.0.0',\n  target_commitish: $json.headSha,\n  name: 'The Real Underground API 1.0.0',\n  body: 'Initial release of The Real Underground public API: instruments, quotes and orders.\\n\\nThe contract is `openapi.yaml`; from now on every release is checked against it.',\n  make_latest: 'true',\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -521,7 +521,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "availableInMCP": true
   },
   "pinData": {},
   "tags": []
