@@ -1,0 +1,528 @@
+{
+  "id": "IA2eEKyx3xq4VZ0z",
+  "name": "Release Tickerline API",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "38d9e993-5686-59f9-951e-09f481757b2d",
+      "name": "Every minute"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "owner",
+              "name": "owner",
+              "value": "cuprum-acid",
+              "type": "string"
+            },
+            {
+              "id": "repo",
+              "name": "repo",
+              "value": "containerization-and-orchestration",
+              "type": "string"
+            },
+            {
+              "id": "apiPath",
+              "name": "apiPath",
+              "value": "lab-8/release-notes-agent/api/",
+              "type": "string"
+            },
+            {
+              "id": "tagPrefix",
+              "name": "tagPrefix",
+              "value": "api-v",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "b9d11d53-5f56-5d28-9bd7-54d8c2276635",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.owner }}/{{ $('Config').first().json.repo }}/git/ref/heads/main",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        0
+      ],
+      "id": "de80fbee-4b60-500e-aac5-e3ebec106c0f",
+      "name": "Main head",
+      "credentials": {
+        "githubApi": {
+          "id": "BWDCzt6XR2ZL7VM6",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.owner }}/{{ $('Config').first().json.repo }}/releases?per_page=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        0
+      ],
+      "id": "11f8befc-c3d1-5a79-a5e7-5bb7ea817500",
+      "name": "List releases",
+      "credentials": {
+        "githubApi": {
+          "id": "BWDCzt6XR2ZL7VM6",
+          "name": "GitHub account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deterministic part: which release is the last one, and what to do now.\n// Releases, not tags: a draft release has no tag yet, but it still counts -\n// otherwise every run would open the same draft again.\nconst cfg = $('Config').first().json;\nconst headSha = $('Main head').first().json.object.sha;\n\nconst parse = (tag) => {\n  const m = tag.slice(cfg.tagPrefix.length).match(/^(\\d+)\\.(\\d+)\\.(\\d+)$/);\n  return m ? m.slice(1).map(Number) : null;\n};\n// Compare numerically: as strings, 1.10.0 sorts before 1.9.0.\nconst cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];\n\nconst releases = $('List releases').all()\n  .map((i) => i.json)\n  .filter((r) => r.tag_name?.startsWith(cfg.tagPrefix) && parse(r.tag_name))\n  .sort((a, b) => cmp(parse(b.tag_name), parse(a.tag_name)));\nconst last = releases[0];\n\nlet action = 'check';\nif (!last) action = 'initial';\nelse if (last.draft) action = 'wait_for_draft';\n\nreturn [{ json: {\n  ...cfg,\n  headSha,\n  action,\n  lastTag: last?.tag_name ?? null,\n  lastVersion: last ? parse(last.tag_name).join('.') : null,\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "1b5de314-53ad-5f9b-b0a7-76a8958a3091",
+      "name": "Plan"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "51cc403d-f6b5-5077-b22c-498ff9853a78",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "initial",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ],
+      "id": "69710408-eb41-505c-adb9-6ba855b9a414",
+      "name": "No releases yet?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.owner }}/{{ $('Config').first().json.repo }}/releases",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  tag_name: $json.tagPrefix + '1.0.0',\n  target_commitish: $json.headSha,\n  name: 'Tickerline API 1.0.0',\n  body: 'Initial release of the Tickerline public API: instruments, quotes and orders.\\n\\nThe contract is `openapi.yaml`; from now on every release is checked against it.',\n  make_latest: 'true',\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        -100
+      ],
+      "id": "d4056adb-6966-502d-91d7-80cb03879135",
+      "name": "Create initial release",
+      "credentials": {
+        "githubApi": {
+          "id": "BWDCzt6XR2ZL7VM6",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f767abc9-846a-54c3-85a9-0865c87afbb2",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "wait_for_draft",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        100
+      ],
+      "id": "c0e50d3d-0e66-500b-a37c-4bc0c5320a3e",
+      "name": "Draft waiting for review?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        0
+      ],
+      "id": "8df09c86-a7dc-59e8-9343-cdcc9cabfdc1",
+      "name": "Wait for a human"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.owner }}/{{ $('Config').first().json.repo }}/compare/{{ $json.lastTag }}...{{ $json.headSha }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        200
+      ],
+      "id": "00c71c34-4731-5a29-ac81-c5d112b0f04e",
+      "name": "Compare with last release",
+      "credentials": {
+        "githubApi": {
+          "id": "BWDCzt6XR2ZL7VM6",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only changes under the API directory make a release: the repository also\n// holds the other labs, and a push of a lab report must not ship anything.\nconst plan = $('Plan').first().json;\nconst cmp = $json;\nconst inApi = (f) => f.filename.startsWith(plan.apiPath) || (f.previous_filename ?? '').startsWith(plan.apiPath);\nconst files = (cmp.files ?? []).filter(inApi).map((f) => f.filename);\nconst commits = (cmp.commits ?? []).map((c) => ({ id: c.sha, message: c.commit.message }));\nreturn [{ json: { ...plan, apiChanged: files.length > 0, files, commits } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "id": "5827c938-13e9-5a7c-9680-f01f7fa5a765",
+      "name": "Collect API changes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5f2c7d6b-3605-5e3f-a92a-aa1a7262a5ad",
+              "leftValue": "={{ $json.apiChanged }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        200
+      ],
+      "id": "a2f554d9-276a-53d1-a1c0-ccb324d1ccc7",
+      "name": "API changed?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        300
+      ],
+      "id": "9dda5a99-cd4b-50e8-8e01-30c3ab5c85e9",
+      "name": "Nothing to release"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://agent:8080/release",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ owner: $json.owner, repo: $json.repo, sha: $json.headSha, last_tag: $json.lastTag, commits: $json.commits }) }}",
+        "options": {
+          "timeout": 330000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        100
+      ],
+      "id": "452c020e-a93f-560e-a8b9-77b3713e553f",
+      "name": "Ask the agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// The agent only proposes. Everything below is plain code: its answer is\n// checked, the version is computed, and a declared breaking change can never\n// be released as less than major.\nconst ctx = $('Collect API changes').first().json;\nconst a = $json;\n\nconst errors = [];\nif (!['major', 'minor', 'patch'].includes(a.bump)) errors.push(`bump=${a.bump}`);\nif (typeof a.title !== 'string' || !a.title.trim() || a.title.length > 70) errors.push('title');\nif (typeof a.notes !== 'string' || a.notes.trim().length < 20) errors.push('notes');\nif (errors.length) throw new Error('Agent answer rejected: ' + errors.join(', '));\n\nconst breaking = ctx.commits.filter((c) =>\n  /BREAKING[ -]CHANGE/.test(c.message) || /^\\w+(\\([^)]*\\))?!:/.test(c.message));\nlet bump = a.bump;\nlet override = null;\nif (breaking.length && bump !== 'major') {\n  override = `the agent proposed ${bump}, but ${breaking.length} commit(s) declare a breaking change`;\n  bump = 'major';\n}\n\nconst [M, m, p] = ctx.lastVersion.split('.').map(Number);\nconst version = { major: `${M + 1}.0.0`, minor: `${M}.${m + 1}.0`, patch: `${M}.${m}.${p + 1}` }[bump];\n// A major release breaks integrations: a person reads it before clients do.\nconst draft = bump === 'major';\n\nlet body = a.notes.trim();\nif (override) body = `> Version bump raised by the release pipeline: ${override}.\\n\\n${body}`;\nif (draft) body += `\\n\\n---\\n**Draft for review.** Agent reasoning: ${a.reasoning}`;\n\nreturn [{ json: {\n  ...ctx, bump, agentBump: a.bump, override, version,\n  tag: ctx.tagPrefix + version, title: a.title.trim(), body, draft,\n  agentTurns: a.meta?.num_turns, agentCostUsd: a.meta?.cost_usd,\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        100
+      ],
+      "id": "a8c86d69-afb1-5107-9652-dd855e9c98be",
+      "name": "Validate and version"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.owner }}/{{ $('Config').first().json.repo }}/releases",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tag_name: $json.tag, target_commitish: $json.headSha, name: $json.version + ': ' + $json.title, body: $json.body, draft: $json.draft, make_latest: $json.draft ? 'false' : 'true' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        100
+      ],
+      "id": "3150ffec-c4f0-5f02-b8d8-dbe088239201",
+      "name": "Create release",
+      "credentials": {
+        "githubApi": {
+          "id": "BWDCzt6XR2ZL7VM6",
+          "name": "GitHub account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every minute": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Main head",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Main head": {
+      "main": [
+        [
+          {
+            "node": "List releases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List releases": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "No releases yet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No releases yet?": {
+      "main": [
+        [
+          {
+            "node": "Create initial release",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Draft waiting for review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft waiting for review?": {
+      "main": [
+        [
+          {
+            "node": "Wait for a human",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compare with last release",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare with last release": {
+      "main": [
+        [
+          {
+            "node": "Collect API changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect API changes": {
+      "main": [
+        [
+          {
+            "node": "API changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API changed?": {
+      "main": [
+        [
+          {
+            "node": "Ask the agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing to release",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask the agent": {
+      "main": [
+        [
+          {
+            "node": "Validate and version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and version": {
+      "main": [
+        [
+          {
+            "node": "Create release",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

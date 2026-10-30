@@ -30,8 +30,13 @@ services:
     secrets: [n8n_key]
     environment:
       N8N_ENCRYPTION_KEY_FILE: /run/secrets/n8n_key
+      # One production run at a time: the schedule fires every minute and an
+      # agent run takes several. A second run would see the same last
+      # release and try to publish the same version.
+      N8N_CONCURRENCY_PRODUCTION_LIMIT: "1"
     volumes:
       - n8n-data:/home/node/.n8n
+      - ./workflows:/workflows
     ports: ["127.0.0.1:5678:5678"]
 
 secrets:
