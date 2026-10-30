@@ -58,7 +58,7 @@ push в main (n8n раз в минуту сверяет main с последни
 | Инструмент | Что делает | Вход |
 |---|---|---|
 | `mcp__git__git_diff` | diff между ревизией и рабочим деревом клона: что вообще изменилось с прошлого релиза | `repo_path`, `target` (последний тег, например `api-v1.0.0`), `context_lines` |
-| `mcp__git__git_show` | содержимое файла на ревизии, если передать `<ref>:<path>`. Так агент читает `openapi.yaml` на прошлом теге и сравнивает контракт до и после | `repo_path`, `revision` (например `api-v1.0.0:lab-8/release-notes-agent/api/openapi.yaml`) |
+| `mcp__git__git_show` | содержимое файла на ревизии, если передать `<ref>:<path>`. Так агент читает `openapi.yaml` на прошлом теге и сравнивает контракт до и после | `repo_path`, `revision` (например `api-v1.0.0:lab-8/api/openapi.yaml`) |
 | `mcp__github__pull_request_read` | данные PR: описание, обсуждение, список файлов. Агент сверяет заявленное автором с тем, что видно в контракте | `owner`, `repo`, `pullNumber`, `method` (`get`, `get_comments`, `get_files`) |
 | `mcp__filesystem__read_text_file` | текущий файл из клона. Нужен, когда в контракте появился эндпоинт без описания и надо понять по коду, что он делает | `path`, `head` / `tail` (необязательно) |
 
@@ -139,7 +139,7 @@ security add-generic-password -a "$USER" -s lab8-grafana-admin -w "$(openssl ran
 ### Подъём
 
 ```bash
-cd lab-8/release-notes-agent
+cd lab-8
 export CLAUDE_TOKEN=$(security find-generic-password -s lab8-claude-token -w)
 export GITHUB_TOKEN_RO=$(security find-generic-password -s lab8-github-ro -w)
 export N8N_KEY=$(security find-generic-password -s lab8-n8n-key -w)

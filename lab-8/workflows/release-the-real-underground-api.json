@@ -42,7 +42,7 @@
             {
               "id": "apiPath",
               "name": "apiPath",
-              "value": "lab-8/release-notes-agent/api/",
+              "value": "lab-8/api/",
               "type": "string"
             },
             {

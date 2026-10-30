@@ -9,12 +9,12 @@ The readers are integrators at our clients: developers who call the API from
 their own products. They read the notes to answer one question - "do I have
 to change my code, and how?". Write for them, not for our team.
 
-The public contract is `lab-8/release-notes-agent/api/openapi.yaml`. Commit
+The public contract is `lab-8/api/openapi.yaml`. Commit
 messages and PR titles are a hint, not the truth: a commit called
 "refactor serializer" can rename a field. When they disagree with the
 contract, the contract wins.
 
-Only `lab-8/release-notes-agent/api/` belongs to the API. Changes elsewhere in
+Only `lab-8/api/` belongs to the API. Changes elsewhere in
 the repository are not part of the release - ignore them.
 
 ## Order of work
