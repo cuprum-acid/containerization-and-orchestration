@@ -1,0 +1,334 @@
+openapi: 3.1.0
+info:
+  title: Tickerline API
+  description: Quotes, instruments and order placement for brokers and fintech apps.
+paths:
+  /v2/instruments:
+    get:
+      tags:
+      - instruments
+      summary: List Instruments
+      operationId: list_instruments_v2_instruments_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Instrument'
+                type: array
+                title: Response List Instruments V2 Instruments Get
+  /v2/instruments/{ticker}:
+    get:
+      tags:
+      - instruments
+      summary: Get Instrument
+      operationId: get_instrument_v2_instruments__ticker__get
+      parameters:
+      - name: ticker
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticker
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instrument'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v2/quotes/{ticker}:
+    get:
+      tags:
+      - quotes
+      summary: Get Quote
+      operationId: get_quote_v2_quotes__ticker__get
+      parameters:
+      - name: ticker
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticker
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/quotes/{ticker}:
+    get:
+      tags:
+      - quotes
+      summary: Get Quote V1
+      operationId: get_quote_v1_v1_quotes__ticker__get
+      parameters:
+      - name: ticker
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticker
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteV1'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v2/orders:
+    post:
+      tags:
+      - orders
+      summary: Create Order
+      operationId: create_order_v2_orders_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v2/orders/{order_id}:
+    get:
+      tags:
+      - orders
+      summary: Get Order
+      operationId: get_order_v2_orders__order_id__get
+      parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Order Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Instrument:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+          examples:
+          - SBER
+        name:
+          type: string
+          title: Name
+        isin:
+          type: string
+          title: Isin
+          examples:
+          - RU0009029540
+        currency:
+          type: string
+          title: Currency
+          examples:
+          - RUB
+        lot_size:
+          type: integer
+          minimum: 1.0
+          title: Lot Size
+      type: object
+      required:
+      - ticker
+      - name
+      - isin
+      - currency
+      - lot_size
+      title: Instrument
+    Order:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+        side:
+          $ref: '#/components/schemas/Side'
+        quantity:
+          type: integer
+          minimum: 1.0
+          title: Quantity
+          description: Number of lots.
+        price:
+          type: string
+          title: Price
+          description: Limit price per share.
+        id:
+          type: string
+          format: uuid
+          title: Id
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - ticker
+      - side
+      - quantity
+      - price
+      - id
+      - status
+      - created_at
+      title: Order
+    OrderCreate:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+        side:
+          $ref: '#/components/schemas/Side'
+        quantity:
+          type: integer
+          minimum: 1.0
+          title: Quantity
+          description: Number of lots.
+        price:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          title: Price
+          description: Limit price per share.
+      type: object
+      required:
+      - ticker
+      - side
+      - quantity
+      - price
+      title: OrderCreate
+    OrderStatus:
+      type: string
+      enum:
+      - new
+      - filled
+      - cancelled
+      title: OrderStatus
+    Quote:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+        bid:
+          type: string
+          title: Bid
+        ask:
+          type: string
+          title: Ask
+        last:
+          type: string
+          title: Last
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+      type: object
+      required:
+      - ticker
+      - bid
+      - ask
+      - last
+      - timestamp
+      title: Quote
+    QuoteV1:
+      properties:
+        ticker:
+          type: string
+          title: Ticker
+        price:
+          type: string
+          title: Price
+      type: object
+      required:
+      - ticker
+      - price
+      title: QuoteV1
+    Side:
+      type: string
+      enum:
+      - buy
+      - sell
+      title: Side
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

@@ -1,0 +1,47 @@
+# Secrets come from the host environment at `docker compose up` time and are
+# mounted into the containers as files under /run/secrets. Nothing secret is
+# written to this repo, to an .env file or to `docker inspect`.
+#
+#   export CLAUDE_TOKEN=$(security find-generic-password -s lab8-claude-token -w)
+#   export GITHUB_TOKEN_RO=$(security find-generic-password -s lab8-github-ro -w)
+#   export N8N_KEY=$(security find-generic-password -s lab8-n8n-key -w)
+#   docker compose up -d --build
+
+name: release-notes
+
+services:
+  agent:
+    build: ./agent
+    secrets: [claude_token, github_token_ro]
+    volumes:
+      - agent-repo:/work
+    environment:
+      AGENT_MODEL: haiku
+      AGENT_TIMEOUT_SECONDS: "300"
+    # No ports: only n8n (and Prometheus later) talk to it, over the
+    # compose network.
+    expose: ["8080"]
+
+  # Workflows, executions and credentials live in the volume; credentials
+  # are encrypted with the key, which lives only in the Keychain. The UI is
+  # bound to loopback: this n8n holds a token that can write to the repo.
+  n8n:
+    image: n8nio/n8n:2.45.6
+    secrets: [n8n_key]
+    environment:
+      N8N_ENCRYPTION_KEY_FILE: /run/secrets/n8n_key
+    volumes:
+      - n8n-data:/home/node/.n8n
+    ports: ["127.0.0.1:5678:5678"]
+
+secrets:
+  claude_token:
+    environment: CLAUDE_TOKEN
+  github_token_ro:
+    environment: GITHUB_TOKEN_RO
+  n8n_key:
+    environment: N8N_KEY
+
+volumes:
+  agent-repo:
+  n8n-data:
