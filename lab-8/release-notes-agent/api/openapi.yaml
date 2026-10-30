@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Tickerline API
+  title: The Real Underground API
   description: Quotes, instruments and order placement for brokers and fintech apps.
 paths:
   /v2/instruments:

@@ -1,9 +1,9 @@
 ---
 name: release-notes
-description: Decide the semver bump and write release notes for the Tickerline public API from the changes since the last tag. Use when asked to prepare a release.
+description: Decide the semver bump and write release notes for The Real Underground public API from the changes since the last tag. Use when asked to prepare a release.
 ---
 
-# Release notes for the Tickerline API
+# Release notes for The Real Underground API
 
 The readers are integrators at our clients: developers who call the API from
 their own products. They read the notes to answer one question - "do I have
@@ -45,9 +45,15 @@ the repository are not part of the release - ignore them.
 - A request field or query parameter became required, or a new required one
   was added: old clients do not send it and now get 422.
 - An enum value removed from a request or a response.
-- Behaviour changed in a way an old client notices, even with the same spec:
-  stricter validation, a different default, a field that now means something
-  else.
+- Behaviour changed so that a client written against the documented
+  contract breaks, even with the same spec: stricter validation that rejects
+  requests the contract allowed, a different default, a field that now means
+  something else.
+
+A fix is not a behaviour break. Every fix changes some output - that is the
+point of it. If the new behaviour is what the contract already promised or
+implied (prices rounded to cents, a 500 that becomes the documented 404),
+it is a patch, even though the values differ from before.
 
 ### minor - something new, nothing breaks
 - A new path or method.
@@ -57,11 +63,13 @@ the repository are not part of the release - ignore them.
   but it must be in the notes.
 
 ### patch - nothing in the contract changed
-- Bug fixes, performance, internal refactoring, docs - and the code check in
-  step 4 found no visible behaviour change.
+- Bug fixes, including visible ones that bring the output in line with the
+  contract.
+- Performance, internal refactoring, docs.
 
-If you are unsure between two levels, take the higher one and say why in the
-notes. A false major costs a client five minutes of reading; a false patch
+If you are unsure between two levels after applying the rules above, take
+the higher one and say why in the notes. Do not use this to escalate a fix
+the rules already classify. A false major costs a client five minutes of reading; a false patch
 costs a night incident.
 
 ## Writing the notes
@@ -80,7 +88,7 @@ Sections, in this order, only those that have entries:
   ("`GET /v2/orders/{id}` returned 500 for cancelled orders").
 
 Rules:
-- Use `https://api.tickerline.example` as the host in examples.
+- Use `https://api.therealunderground.example` as the host in examples.
 - No internal details: no class names, commit hashes, author names, ticket
   numbers. Link the PR at the end of an entry: `(#12)`.
 - Do not describe changes you did not see in the diff, and do not pad: one
@@ -98,12 +106,12 @@ with `price` are rejected with 422, and responses no longer contain it.
 
 Before:
 ```bash
-curl -X POST https://api.tickerline.example/v2/orders \
+curl -X POST https://api.therealunderground.example/v2/orders \
   -d '{"ticker": "SBER", "side": "buy", "quantity": 1, "price": 312.4}'
 ```
 After:
 ```bash
-curl -X POST https://api.tickerline.example/v2/orders \
+curl -X POST https://api.therealunderground.example/v2/orders \
   -d '{"ticker": "SBER", "side": "buy", "quantity": 1, "limit_price": 312.4}'
 ```
 (#12)

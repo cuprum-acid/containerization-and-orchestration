@@ -1,0 +1,48 @@
+groups:
+  - name: release-pipeline
+    rules:
+      # Releases are rare: a handful of agent calls a week, each of them a
+      # release. A ratio of two requests jumps between 0% and 50% and means
+      # nothing, so a single failure is the signal. A timeout is one of the
+      # outcomes, which is why there is no separate latency alert.
+      - alert: ReleaseAgentFailing
+        expr: increase(agent_requests_total{outcome!="ok"}[1h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: The release agent failed at least once in the last hour
+          description: '{{ $labels.outcome }}: no release was created for that push. See `docker compose logs agent`.'
+
+      # The failure that keeps repeating: the agent answers garbage, the
+      # validation throws, the schedule runs again a minute later and pays
+      # again. A normal release costs about $0.01 and a busy hour has a few
+      # of them; a loop is 60 runs an hour, ~$0.45.
+      - alert: ReleaseAgentCostRunaway
+        expr: increase(agent_cost_usd_total[1h]) > 0.10
+        labels:
+          severity: warning
+        annotations:
+          summary: The release agent spent more than $0.10 in an hour
+          description: 'Spent ${{ $value | printf "%.2f" }}. Normal is about $0.01 per release - look for the same release being retried.'
+
+      # Every step, not only the AI one: an expired GitHub token fails
+      # "List releases" and the agent is never called, so its metrics stay
+      # clean. n8n creates the failed counter lazily, at the first failure,
+      # already at 1 - increase() has no earlier sample to compare with and
+      # sees 0. The "unless offset" half catches that first appearance; up
+      # covers n8n itself being down.
+      # The workflow runs every minute, so a broken pipeline fails every
+      # minute: 10 minutes is ~10 runs, enough to see it, and the alert
+      # resolves ~10 minutes after the fix instead of an hour.
+      - alert: ReleaseWorkflowFailing
+        expr: |
+          increase(n8n_workflow_failed_total[10m]) > 0
+            or
+          (n8n_workflow_failed_total unless n8n_workflow_failed_total offset 10m)
+            or
+          up{job="n8n"} == 0
+        labels:
+          severity: critical
+        annotations:
+          summary: The release workflow is failing or n8n is down
+          description: Releases are not being created. Open the failed run in n8n Executions.

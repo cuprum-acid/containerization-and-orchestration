@@ -160,7 +160,7 @@ def sync_clone(owner: str, repo: str, sha: str) -> None:
 
 def build_prompt(req: dict) -> str:
     commits = "\n".join(f"- {c['id'][:12]} {c['message'].strip()}" for c in req["commits"])
-    return f"""Prepare a release of the Tickerline API. Follow the release-notes skill.
+    return f"""Prepare a release of The Real Underground API. Follow the release-notes skill.
 
 Repository: {req['owner']}/{req['repo']} (local clone: {REPO_DIR})
 Last release tag: {req['last_tag']}
