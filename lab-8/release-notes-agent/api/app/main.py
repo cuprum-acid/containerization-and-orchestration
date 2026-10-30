@@ -1,4 +1,4 @@
-"""Tickerline public API: a small in-memory mock.
+"""The Real Underground public API: a small in-memory mock.
 
 The contract integrators rely on is openapi.yaml next to this package. It is
 generated from this code by export_openapi.py and committed, so every change
@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 app = FastAPI(
-    title="Tickerline API",
+    title="The Real Underground API",
     version="1.0.0",
     description="Quotes, instruments and order placement for brokers and fintech apps.",
 )
